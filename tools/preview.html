@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Developer Power Mode Combo - preview without installing</title>
+    <style>
+      body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: #f8fafc; color: #0f172a; }
+      nav { display: flex; align-items: center; gap: 16px; height: 48px; padding: 0 20px; background: #1e293b; color: #e2e8f0; }
+      .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 80px 20px 0; }
+      main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; padding: 18px 20px; max-width: 920px; }
+      label.field { display: block; font-weight: 600; margin-bottom: 4px; }
+      input[type='text'], input[type='password'], textarea, [contenteditable] { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; font: inherit; }
+      textarea { height: 118px; font: 14px/1.5 Consolas, monospace; resize: none; }
+      [contenteditable] { min-height: 118px; }
+    </style>
+    <script>
+      // In-memory stand-in for chrome.storage so the content scripts run on a plain page.
+      (() => {
+        const data = { pmcSettings: { powerMode: true, sound: true, theme: 'farm' } };
+        const listeners = [];
+        window.chrome = {
+          storage: {
+            local: {
+              get: (key) => Promise.resolve({ [key]: data[key] }),
+              set: (items) => {
+                const changes = {};
+                for (const [k, v] of Object.entries(items)) {
+                  changes[k] = { oldValue: data[k], newValue: v };
+                  data[k] = v;
+                }
+                listeners.forEach((fn) => fn(changes, 'local'));
+                return Promise.resolve();
+              },
+            },
+            onChanged: { addListener: (fn) => listeners.push(fn) },
+          },
+        };
+      })();
+    </script>
+  </head>
+  <body>
+    <nav><b>Dev Notes</b><span>Preview page (no extension installed)</span></nav>
+
+    <div class="controls">
+      <label>Theme
+        <select id="theme">
+          <option value="farm">Animal Farm</option>
+          <option value="beach">Beach Vacation</option>
+          <option value="halloween">Halloween</option>
+          <option value="christmas">Christmas</option>
+          <option value="sea">Sea Life</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="powerMode" checked /> Power Mode</label>
+      <label><input type="checkbox" id="sound" checked /> Background Sound (starts after a click)</label>
+    </div>
+
+    <main>
+      <div>
+        <label class="field" for="code">Snippet (textarea)</label>
+        <textarea id="code" spellcheck="false" placeholder="Type fast: 3 hits = sparks, 10 hits = shake"></textarea>
+      </div>
+      <div>
+        <label class="field" for="notes-box">Notes (contenteditable)</label>
+        <div id="notes-box" contenteditable="true" spellcheck="false"></div>
+      </div>
+      <div>
+        <label class="field" for="title">Title (text input)</label>
+        <input id="title" type="text" spellcheck="false" />
+      </div>
+      <div>
+        <label class="field" for="secret">Token (password, ignored)</label>
+        <input id="secret" type="password" autocomplete="off" />
+      </div>
+    </main>
+
+    <script src="../extension/src/core.js"></script>
+    <script src="../extension/src/themes.js"></script>
+    <script src="../extension/src/audio.js"></script>
+    <script src="../extension/src/content.js"></script>
+    <script>
+      const ids = ['theme', 'powerMode', 'sound'];
+      const read = () => ({
+        theme: document.getElementById('theme').value,
+        powerMode: document.getElementById('powerMode').checked,
+        sound: document.getElementById('sound').checked,
+      });
+      for (const id of ids) document.getElementById(id).addEventListener('change', () => chrome.storage.local.set({ pmcSettings: read() }));
+    </script>
+  </body>
+</html>

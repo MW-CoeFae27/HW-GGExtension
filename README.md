@@ -59,6 +59,14 @@ The screenshots and GIF were captured from real Chrome with the unpacked extensi
 
 You don't need to publish to the Chrome Web Store, build anything, or sign in.
 
+### Preview without installing
+
+Open [`tools/preview.html`](tools/preview.html) directly in Chrome (double-click it). It loads the same
+scripts from `extension/src/` on a plain page, with an in-memory stand-in for `chrome.storage` and a
+small theme / Power Mode / sound picker in place of the popup. You can try the themed band, counter,
+sparks, shake, and music (after one click). Settings reset on reload, and it only affects that page;
+install the extension to use it on real websites.
+
 ### Using it
 
 - Click into a text field on any normal website and start typing. The counter appears on your third
