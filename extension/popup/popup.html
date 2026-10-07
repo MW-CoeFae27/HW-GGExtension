@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Developer Power Mode Combo</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1><span class="power">POWER MODE</span> <span class="combo">COMBO</span></h1>
+      <p class="tagline">Type. Chain. Glow.</p>
+    </header>
+
+    <section class="toggles" aria-label="Settings">
+      <label class="switch">
+        <input type="checkbox" id="powerMode" role="switch" />
+        <span class="track" aria-hidden="true"></span>
+        <span class="text">Power Mode</span>
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="sound" role="switch" />
+        <span class="track" aria-hidden="true"></span>
+        <span class="text">Background Sound</span>
+      </label>
+    </section>
+
+    <fieldset class="themes">
+      <legend>Ambient theme</legend>
+      <div class="grid" id="themeGrid"></div>
+    </fieldset>
+
+    <p class="note">Saved locally. Typed text is never stored or sent.</p>
+
+    <script src="../src/core.js"></script>
+    <script src="../src/themes.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

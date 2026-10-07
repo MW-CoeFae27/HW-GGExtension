@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Dev Notes - Power Mode demo</title>
+    <style>
+      body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: #f8fafc; color: #0f172a; }
+      nav { display: flex; align-items: center; gap: 16px; height: 48px; padding: 0 20px; background: #1e293b; color: #e2e8f0; }
+      nav b { font-size: 16px; }
+      nav button { margin-left: auto; padding: 4px 12px; }
+      main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; padding: 18px 20px; max-width: 920px; }
+      label { display: block; font-weight: 600; margin-bottom: 4px; }
+      input, textarea, [contenteditable] { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; font: inherit; }
+      textarea { height: 118px; font: 14px/1.5 Consolas, monospace; resize: none; }
+      [contenteditable] { min-height: 118px; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <b>Dev Notes</b><span>Sprint 42</span>
+      <button id="ping" type="button">Ping <span id="pings">0</span></button>
+    </nav>
+    <main>
+      <div>
+        <label for="code">Snippet (textarea)</label>
+        <textarea id="code" spellcheck="false"></textarea>
+      </div>
+      <div>
+        <label for="notes-box">Notes (contenteditable)</label>
+        <div id="notes-box" contenteditable="true" spellcheck="false"></div>
+      </div>
+      <div>
+        <label for="title">Title (text input)</label>
+        <input id="title" type="text" spellcheck="false" />
+      </div>
+      <div>
+        <label for="secret">Token (password, ignored)</label>
+        <input id="secret" type="password" />
+      </div>
+    </main>
+    <script>
+      document.getElementById('ping').addEventListener('click', () => {
+        const el = document.getElementById('pings');
+        el.textContent = String(Number(el.textContent) + 1);
+      });
+    </script>
+  </body>
+</html>

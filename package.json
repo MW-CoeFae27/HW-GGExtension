@@ -1,0 +1,17 @@
+{
+  "name": "developer-power-mode-combo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-only Chrome MV3 extension: typing combo counter, neon sparks and pixel-art ambient themes.",
+  "scripts": {
+    "test": "node --test tests/unit/*.test.js",
+    "test:e2e": "node --test --test-concurrency=1 tests/e2e/*.test.mjs",
+    "icons": "node tools/make-icons.mjs",
+    "capture": "node tools/capture.mjs"
+  },
+  "devDependencies": {
+    "gifenc": "^1.0.3",
+    "pngjs": "^7.0.0",
+    "puppeteer-core": "^25.12.0"
+  }
+}
