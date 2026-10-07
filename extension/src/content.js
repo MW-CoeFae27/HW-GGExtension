@@ -235,7 +235,7 @@
   // ---- Single animation loop ----------------------------------------------------------------
 
   function ambientNeedsLoop() {
-    return !!scene && (!reducedMotion || (settings.sound && !!music));
+    return !!scene && !reducedMotion;
   }
 
   function effectsActive() {
@@ -254,7 +254,6 @@
 
   function frame(now) {
     rafId = 0;
-    if (music) music.pump();
     const dt = limiter.next(now);
     if (dt >= 0) render(dt, now);
     if (wantsLoop()) {

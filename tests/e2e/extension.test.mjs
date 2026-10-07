@@ -2,6 +2,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { PNG } from 'pngjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { launch, findChrome, sleep } from '../../tools/harness.mjs';
 
 const skip = findChrome() ? false : 'Chrome not found (set CHROME_PATH)';
@@ -176,6 +177,35 @@ test('reduced motion keeps a static counter and no ambient animation', { skip },
   await page.click('#code');
   await page.keyboard.type('abc');
   assert.equal(await counterVisible(page, baseline), true);
+  await page.close();
+});
+
+test('every theme renders a seamless, non-silent music loop', { skip }, async () => {
+  const page = await h.browser.newPage();
+  await page.goto(pathToFileURL(fileURLToPath(new URL('../../tools/preview.html', import.meta.url))).href);
+  const results = await page.evaluate(async () => {
+    const out = {};
+    for (const [id, theme] of Object.entries(PMCThemes.THEMES)) {
+      const buf = await PMCAudio.renderSong(theme.song, 44100);
+      const d = buf.getChannelData(0);
+      let peak = 0;
+      let sum = 0;
+      let maxJump = 0;
+      for (let i = 0; i < d.length; i++) {
+        peak = Math.max(peak, Math.abs(d[i]));
+        sum += d[i] * d[i];
+        if (i) maxJump = Math.max(maxJump, Math.abs(d[i] - d[i - 1]));
+      }
+      const expected = (theme.song.lead.length * 30) / theme.song.bpm;
+      out[id] = { duration: buf.duration, expected, rms: Math.sqrt(sum / d.length), seam: Math.abs(d[d.length - 1] - d[0]), maxJump, peak };
+    }
+    return out;
+  });
+  for (const [id, r] of Object.entries(results)) {
+    assert.ok(Math.abs(r.duration - r.expected) < 0.001, `${id} loop length ${r.duration}`);
+    assert.ok(r.rms > 0.01, `${id} is audible`);
+    assert.ok(r.seam <= r.maxJump + 1e-6, `${id} loop seam (${r.seam}) is no harsher than the music itself (${r.maxJump})`);
+  }
   await page.close();
 });
 

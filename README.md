@@ -95,7 +95,7 @@ extension/
   manifest.json      MV3: content scripts + popup, permission "storage" only
   src/core.js        DOM-free logic: editor detection, edit tracker, combo, pools, frame limiter
   src/themes.js      original pixel-art sprites, scenery painters, scene engine, pixel font, scores
-  src/audio.js       Web Audio chiptune sequencer (all sound synthesized, no audio files)
+  src/audio.js       Web Audio chiptune renderer + gapless looper (all sound synthesized, no audio files)
   src/content.js     overlay, input listeners, the single animation loop
   popup/             compact settings UI with animated theme previews
   icons/             generated pixel-art icons
@@ -105,9 +105,12 @@ extension/
   host element. The host has `pointer-events: none`, `contain: strict`, and inline `!important`
   styles, so page CSS can't reach it and clicks pass through to the page. All listeners are passive
   and capture-phase, and none of them call `preventDefault` or `stopPropagation`.
-- **One loop.** A single `requestAnimationFrame` loop drives the scenery, effects, counter, and music
-  scheduling. Rendering is capped near **30 FPS**, and movement uses delta time clamped to 100 ms.
+- **One loop.** A single `requestAnimationFrame` loop drives the scenery, effects, and counter.
+  Rendering is capped near **30 FPS**, and movement uses delta time clamped to 100 ms.
   The loop stops completely when nothing needs drawing.
+- **Smooth music.** Each theme's score is rendered once with an `OfflineAudioContext` into a
+  seamless loop buffer, then played with a native looping `AudioBufferSourceNode`. Playback runs on
+  the audio thread, so busy pages or throttled frames can't cause dropouts. Theme switches crossfade.
 - **Activity caps.** The overlay shows at most **5 moving characters** (2 sleighs for Christmas), with
   spawn gaps between them. It also caps **24 ink blots** and **150 typing particles**. The oldest are
   recycled first.
