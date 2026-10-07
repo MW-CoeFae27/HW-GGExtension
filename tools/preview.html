@@ -16,7 +16,7 @@
     <script>
       // In-memory stand-in for chrome.storage so the content scripts run on a plain page.
       (() => {
-        const data = { pmcSettings: { powerMode: true, sound: true, theme: 'farm' } };
+        const data = { pmcSettings: { powerMode: true, sound: true, pushPage: true, theme: 'farm' } };
         const listeners = [];
         window.chrome = {
           storage: {
@@ -54,6 +54,7 @@
       </label>
       <label><input type="checkbox" id="powerMode" checked /> Power Mode</label>
       <label><input type="checkbox" id="sound" checked /> Background Sound (starts after a click)</label>
+      <label><input type="checkbox" id="pushPage" checked /> Push page down</label>
     </div>
 
     <main>
@@ -80,11 +81,12 @@
     <script src="../extension/src/audio.js"></script>
     <script src="../extension/src/content.js"></script>
     <script>
-      const ids = ['theme', 'powerMode', 'sound'];
+      const ids = ['theme', 'powerMode', 'sound', 'pushPage'];
       const read = () => ({
         theme: document.getElementById('theme').value,
         powerMode: document.getElementById('powerMode').checked,
         sound: document.getElementById('sound').checked,
+        pushPage: document.getElementById('pushPage').checked,
       });
       for (const id of ids) document.getElementById(id).addEventListener('change', () => chrome.storage.local.set({ pmcSettings: read() }));
     </script>

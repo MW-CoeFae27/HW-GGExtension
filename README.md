@@ -45,8 +45,14 @@ The screenshots and GIF were captured from real Chrome with the unpacked extensi
 - **Ambient behavior.** The scenery starts as soon as you choose a theme. It keeps animating while
   the page sits idle, and the characters respawn on their own. It runs independently of typing.
 - **Compact popup.** The popup has a Power Mode toggle (on by default), a Background Sound toggle
-  (on by default), and live theme previews. You can pick **Animal Farm, Beach Vacation, Halloween,
-  Christmas, Sea Life, or Off**. Your choices are saved in `chrome.storage.local`.
+  (on by default), a Push page down toggle (on by default), and live theme previews. You can pick
+  **Animal Farm, Beach Vacation, Halloween, Christmas, Sea Life, or Off**. Your choices are saved in
+  `chrome.storage.local`.
+- **Band above the header.** With **Push page down** on, the page moves down 60 px, so the themed
+  band sits above the site's header instead of covering it. Headers pinned to the top
+  (`position: fixed` or `sticky`) are moved down too. Everything is restored when you choose
+  **Off**, turn the toggle off, or enable reduced motion. Turn the toggle off to draw the band over
+  the page instead.
 
 ## Install (unpacked)
 
@@ -119,6 +125,10 @@ extension/
   counter only. You get no scenery, sparks, blots, shake, or pulse.
 - **Shake.** The celebration shake offsets only the overlay canvas drawing. The page's DOM, styles,
   and scroll position are never touched, and an end-to-end test checks this.
+- **Push page down.** This mode adds one removable `<style>` rule, `html { margin-top: 60px }`. It
+  also finds fixed or sticky elements pinned inside the band, using `elementsFromPoint` sampling
+  that reruns (debounced) on DOM changes, scrolling, and resizing. It adds 60 px to their `top`
+  and remembers each original inline value so it can restore it exactly.
 
 ## Compatibility and limits
 
@@ -128,8 +138,10 @@ extension/
 - It is **not** guaranteed to work with every custom editor. Canvas-based editors like Google Docs,
   editors that capture keys in hidden iframes, Monaco/CodeMirror variants that bypass native
   `input` events, and editors inside iframes or closed shadow roots may not report hits.
-- The 60 px ambient band is drawn over the top of the page, so a site's header can be covered
-  visually. Clicks still go through to it. Choose **Off** to hide the band.
+- With **Push page down** off, the 60 px band is drawn over the top of the page, so a site's header
+  can be covered visually, though clicks still reach it. With it on, a few full-height app layouts
+  (`height: 100vh` with their own scrolling) may lose 60 px at the bottom. Switch the toggle off on
+  those sites.
 - The overlay sits behind elements in the browser's top layer, such as fullscreen video and modal
   `<dialog>` elements.
 

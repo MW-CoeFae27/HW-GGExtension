@@ -61,6 +61,7 @@ test('overlay is click-through and never blocks the page', { skip }, async () =>
 
 test('ambient band is drawn only in the top 60 px and disappears when Off', { skip }, async () => {
   const page = await openPage('farm');
+  await h.setSettings({ powerMode: true, sound: false, pushPage: false, theme: 'farm' });
   await sleep(300);
   const navColor = [0x1e, 0x29, 0x3b];
   const band = await shot(page, { x: 0, y: 0, width: 960, height: 70 });
@@ -71,6 +72,31 @@ test('ambient band is drawn only in the top 60 px and disappears when Off', { sk
   await sleep(300);
   const off = await shot(page, { x: 0, y: 0, width: 960, height: 70 });
   assert.deepEqual(px(off, 4, 4), navColor);
+  await page.close();
+});
+
+test('push mode places the band above the page header instead of covering it', { skip }, async () => {
+  const page = await openPage('farm');
+  await sleep(300);
+  const navTop = () => page.$eval('nav', (el) => el.getBoundingClientRect().top);
+  assert.equal(await navTop(), 60, 'header starts right below the band');
+  const img = await shot(page, { x: 0, y: 0, width: 8, height: 70 });
+  assert.notDeepEqual(Array.from(img.data.slice(0, 3)), [0x1e, 0x29, 0x3b], 'band drawn above');
+  assert.deepEqual(Array.from(img.data.slice((65 * 8 + 4) * 4, (65 * 8 + 4) * 4 + 3)), [0x1e, 0x29, 0x3b], 'header visible below');
+
+  await page.evaluate(() => {
+    const bar = document.createElement('div');
+    bar.id = 'pinned';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;height:30px;background:#000';
+    document.body.appendChild(bar);
+  });
+  await sleep(500);
+  assert.equal(await page.$eval('#pinned', (el) => el.getBoundingClientRect().top), 60, 'fixed header moved below the band');
+
+  await h.setSettings({ powerMode: true, sound: false, theme: 'off' });
+  await sleep(300);
+  assert.equal(await navTop(), 0, 'page restored when the band is off');
+  assert.equal(await page.$eval('#pinned', (el) => [el.getBoundingClientRect().top, el.style.top].join()), '0,0px', 'inline top restored');
   await page.close();
 });
 
@@ -218,7 +244,7 @@ test('popup persists settings in chrome.storage.local', { skip }, async () => {
   await popup.click('label:has(#sound)');
   await popup.click('label:has(input[value="halloween"])');
   await sleep(100);
-  assert.deepEqual(await h.getSettings(), { powerMode: true, sound: false, theme: 'halloween' });
+  assert.deepEqual(await h.getSettings(), { powerMode: true, sound: false, pushPage: true, theme: 'halloween' });
   await popup.reload();
   await sleep(200);
   assert.equal(await popup.$eval('#sound', (el) => el.checked), false);

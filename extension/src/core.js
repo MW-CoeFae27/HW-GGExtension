@@ -7,7 +7,7 @@
   'use strict';
 
   const THEME_IDS = Object.freeze(['farm', 'beach', 'halloween', 'christmas', 'sea', 'off']);
-  const DEFAULT_SETTINGS = Object.freeze({ powerMode: true, sound: true, theme: 'farm' });
+  const DEFAULT_SETTINGS = Object.freeze({ powerMode: true, sound: true, pushPage: true, theme: 'farm' });
   const STORAGE_KEY = 'pmcSettings';
 
   const LIMITS = Object.freeze({
@@ -25,6 +25,7 @@
     return {
       powerMode: typeof s.powerMode === 'boolean' ? s.powerMode : DEFAULT_SETTINGS.powerMode,
       sound: typeof s.sound === 'boolean' ? s.sound : DEFAULT_SETTINGS.sound,
+      pushPage: typeof s.pushPage === 'boolean' ? s.pushPage : DEFAULT_SETTINGS.pushPage,
       theme: THEME_IDS.includes(s.theme) ? s.theme : DEFAULT_SETTINGS.theme,
     };
   }

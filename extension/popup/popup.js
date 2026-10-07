@@ -10,6 +10,7 @@
 
   const powerMode = document.getElementById('powerMode');
   const sound = document.getElementById('sound');
+  const pushPage = document.getElementById('pushPage');
   const grid = document.getElementById('themeGrid');
   let settings = Core.normalizeSettings(null);
 
@@ -72,6 +73,7 @@
   function render() {
     powerMode.checked = settings.powerMode;
     sound.checked = settings.sound;
+    pushPage.checked = settings.pushPage;
     for (const p of previews) p.input.checked = p.input.value === settings.theme;
   }
 
@@ -83,6 +85,7 @@
 
   powerMode.addEventListener('change', () => save({ powerMode: powerMode.checked }));
   sound.addEventListener('change', () => save({ sound: sound.checked }));
+  pushPage.addEventListener('change', () => save({ pushPage: pushPage.checked }));
 
   render();
   chrome.storage.local.get(Core.STORAGE_KEY).then((res) => {

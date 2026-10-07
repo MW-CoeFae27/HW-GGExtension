@@ -48,6 +48,12 @@
   let counterAlpha = 0;
   let shownCount = 0;
 
+  let pushActive = false;
+  let pushStyle = null;
+  let pushObserver = null;
+  let scanTimer = 0;
+  const shifted = new Map();
+
   const makeCanvas = (w, h) => {
     const c = document.createElement('canvas');
     c.width = w;
@@ -337,6 +343,66 @@
     fullDirty = drewEffects || ox !== 0 || oy !== 0;
   }
 
+  // ---- Optional push-down: reserve the band above the page instead of covering it ------------
+
+  function scheduleScan() {
+    if (!scanTimer) scanTimer = setTimeout(scanPinned, 250);
+  }
+
+  function offsetIfPinned(el) {
+    if (shifted.has(el) || el === host || el === document.documentElement || el === document.body) return;
+    const cs = getComputedStyle(el);
+    if (cs.position !== 'fixed' && cs.position !== 'sticky') return;
+    const top = parseFloat(cs.top);
+    if (Number.isNaN(top) || top >= BAND) return;
+    shifted.set(el, { value: el.style.getPropertyValue('top'), priority: el.style.getPropertyPriority('top') });
+    el.style.setProperty('top', `${top + BAND}px`, 'important');
+  }
+
+  // Fixed/sticky headers ignore the html margin, so find anything pinned inside the band and move it down.
+  function scanPinned() {
+    scanTimer = 0;
+    if (!pushActive) return;
+    const w = document.documentElement.clientWidth;
+    const stepX = Math.max(40, w / 24);
+    for (let x = 4; x < w; x += stepX) {
+      for (const y of [2, BAND / 2, BAND - 2]) {
+        for (const el of document.elementsFromPoint(x, y)) offsetIfPinned(el);
+      }
+    }
+  }
+
+  function updatePush() {
+    const want = settings.pushPage && !!scene && !reducedMotion;
+    if (want === pushActive) {
+      if (want) scheduleScan();
+      return;
+    }
+    pushActive = want;
+    if (want) {
+      pushStyle = document.createElement('style');
+      pushStyle.textContent = `html{margin-top:${BAND}px !important;}`;
+      (document.head || document.documentElement).appendChild(pushStyle);
+      pushObserver = new MutationObserver(scheduleScan);
+      pushObserver.observe(document.documentElement, { childList: true, subtree: true });
+      window.addEventListener('scroll', scheduleScan, { capture: true, passive: true });
+      scanPinned();
+    } else {
+      pushStyle.remove();
+      pushStyle = null;
+      pushObserver.disconnect();
+      pushObserver = null;
+      window.removeEventListener('scroll', scheduleScan, { capture: true });
+      clearTimeout(scanTimer);
+      scanTimer = 0;
+      for (const [el, orig] of shifted) {
+        if (orig.value) el.style.setProperty('top', orig.value, orig.priority);
+        else el.style.removeProperty('top');
+      }
+      shifted.clear();
+    }
+  }
+
   // ---- Settings, audio, visibility --------------------------------------------------------------
 
   function updateMusic() {
@@ -363,6 +429,7 @@
       }
       fullDirty = true;
     }
+    updatePush();
     updateMusic();
     ensureLoop();
   }
@@ -428,7 +495,10 @@
   document.addEventListener('compositionstart', onCompositionStart, listen);
   document.addEventListener('compositionend', onCompositionEnd, listen);
   document.addEventListener('focusin', onFocusIn, listen);
-  window.addEventListener('resize', () => host && resize(), { passive: true });
+  window.addEventListener('resize', () => {
+    if (host) resize();
+    if (pushActive) scheduleScan();
+  }, { passive: true });
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
@@ -448,6 +518,7 @@
     blots.clear();
     shakeLeft = 0;
     fullDirty = true;
+    updatePush();
     ensureLoop();
   });
 

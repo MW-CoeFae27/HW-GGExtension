@@ -178,7 +178,7 @@ test('spawner respects the active cap and its gap timer', () => {
 });
 
 test('settings normalize to safe defaults', () => {
-  assert.deepEqual(Core.normalizeSettings(undefined), { powerMode: true, sound: true, theme: 'farm' });
-  assert.deepEqual(Core.normalizeSettings({ powerMode: 'yes', sound: false, theme: 'mars' }), { powerMode: true, sound: false, theme: 'farm' });
+  assert.deepEqual(Core.normalizeSettings(undefined), { powerMode: true, sound: true, pushPage: true, theme: 'farm' });
+  assert.deepEqual(Core.normalizeSettings({ powerMode: 'yes', sound: false, pushPage: 1, theme: 'mars' }), { powerMode: true, sound: false, pushPage: true, theme: 'farm' });
   for (const id of Core.THEME_IDS) assert.equal(Core.normalizeSettings({ theme: id }).theme, id);
 });
