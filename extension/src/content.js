@@ -260,6 +260,10 @@
 
   function frame(now) {
     rafId = 0;
+    if (!extensionAlive()) {
+      shutdown();
+      return;
+    }
     const dt = limiter.next(now);
     if (dt >= 0) render(dt, now);
     if (wantsLoop()) {
@@ -405,9 +409,43 @@
 
   // ---- Settings, audio, visibility --------------------------------------------------------------
 
+  // Only the most recently focused tab plays, so visible tabs never stack out-of-sync loops.
+  const OWNER_KEY = 'pmcAudioOwner';
+  const instanceId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  let audioOwner = false;
+  let stopped = false;
+
+  function extensionAlive() {
+    try {
+      return !!(chrome.runtime && chrome.runtime.id);
+    } catch {
+      return false;
+    }
+  }
+
+  // After the extension is reloaded or removed, this old copy must go quiet and get out of the way.
+  function shutdown() {
+    if (stopped) return;
+    stopped = true;
+    applySettings(Core.normalizeSettings({ powerMode: false, sound: false, pushPage: false, theme: 'off' }));
+    if (host) host.remove();
+  }
+
+  function claimAudio() {
+    if (stopped) return;
+    if (!extensionAlive()) {
+      shutdown();
+      return;
+    }
+    if (audioOwner || document.hidden || !document.hasFocus()) return;
+    audioOwner = true;
+    updateMusic();
+    chrome.storage.local.set({ [OWNER_KEY]: instanceId }).catch(() => {});
+  }
+
   function updateMusic() {
     if (!music) return;
-    if (scene && settings.sound && !document.hidden) music.play(Themes.THEMES[scene.id].song);
+    if (scene && settings.sound && audioOwner && !document.hidden) music.play(Themes.THEMES[scene.id].song);
     else music.pause();
   }
 
@@ -510,7 +548,9 @@
       ensureLoop();
     }
     updateMusic();
+    claimAudio();
   });
+  window.addEventListener('focus', claimAudio);
 
   motionQuery.addEventListener('change', (e) => {
     reducedMotion = e.matches;
@@ -526,10 +566,16 @@
     chrome.storage.local
       .get(Core.STORAGE_KEY)
       .then((res) => applySettings(Core.normalizeSettings(res[Core.STORAGE_KEY])))
-      .catch(() => applySettings(Core.normalizeSettings(null)));
+      .catch(() => applySettings(Core.normalizeSettings(null)))
+      .then(claimAudio);
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && changes[Core.STORAGE_KEY]) {
+      if (area !== 'local' || stopped) return;
+      if (changes[Core.STORAGE_KEY]) {
         applySettings(Core.normalizeSettings(changes[Core.STORAGE_KEY].newValue));
+      }
+      if (changes[OWNER_KEY]) {
+        audioOwner = changes[OWNER_KEY].newValue === instanceId;
+        updateMusic();
       }
     });
   } catch {

@@ -19,6 +19,7 @@
         const data = { pmcSettings: { powerMode: true, sound: true, pushPage: true, theme: 'farm' } };
         const listeners = [];
         window.chrome = {
+          runtime: { id: 'preview' },
           storage: {
             local: {
               get: (key) => Promise.resolve({ [key]: data[key] }),

@@ -235,6 +235,30 @@ test('every theme renders a seamless, non-silent music loop', { skip }, async ()
   await page.close();
 });
 
+test('only the most recently focused tab owns the background music', { skip }, async () => {
+  await h.setSettings({ powerMode: true, sound: true, theme: 'beach' });
+  const owner = () => h.getOwner();
+  const a = await h.browser.newPage();
+  await a.goto(h.url);
+  await a.bringToFront();
+  await a.click('#code');
+  await sleep(300);
+  const first = await owner();
+  const b = await h.browser.newPage();
+  await b.goto(h.url);
+  await b.bringToFront();
+  await b.click('#code');
+  await sleep(300);
+  const second = await owner();
+  assert.ok(first && second && first !== second, `ownership moved (${first} -> ${second})`);
+  await a.bringToFront();
+  await a.click('#code');
+  await sleep(300);
+  assert.equal(await owner(), first, 'ownership returns to the refocused tab');
+  await a.close();
+  await b.close();
+});
+
 test('popup persists settings in chrome.storage.local', { skip }, async () => {
   await h.setSettings({ powerMode: true, sound: true, theme: 'farm' });
   const popup = await h.browser.newPage();

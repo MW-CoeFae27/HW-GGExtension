@@ -116,7 +116,12 @@ extension/
   The loop stops completely when nothing needs drawing.
 - **Smooth music.** Each theme's score is rendered once with an `OfflineAudioContext` into a
   seamless loop buffer, then played with a native looping `AudioBufferSourceNode`. Playback runs on
-  the audio thread, so busy pages or throttled frames can't cause dropouts. Theme switches crossfade.
+  the audio thread, so busy pages or throttled frames can't cause dropouts.
+- **One player at a time.** Every page runs its own copy, so only the most recently focused tab plays.
+  Ownership is a random per-page id stored under `pmcAudioOwner`; this avoids overlapping, out-of-step
+  loops from several visible tabs or windows. The loop position follows the wall clock, so after a
+  navigation or tab switch the music picks up where the "broadcast" is instead of restarting.
+  Copies left behind by an extension reload detect it and shut themselves down.
 - **Activity caps.** The overlay shows at most **5 moving characters** (2 sleighs for Christmas), with
   spawn gaps between them. It also caps **24 ink blots** and **150 typing particles**. The oldest are
   recycled first.

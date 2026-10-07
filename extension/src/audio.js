@@ -3,7 +3,8 @@
   'use strict';
 
   const MASTER_VOLUME = 0.05;
-  const FADE_S = 0.35;
+  const FADE_IN_S = 0.25;
+  const FADE_OUT_S = 0.12;
 
   function midiToHz(midi) {
     return 440 * Math.pow(2, (midi - 69) / 12);
@@ -67,6 +68,11 @@
     return loop;
   }
 
+  /** Position in the loop derived from the wall clock, so every page joins the "same broadcast". */
+  function clockOffset(duration, nowMs = Date.now()) {
+    return (nowMs / 1000) % duration;
+  }
+
   function createMusicPlayer() {
     let ac = null;
     let master = null;
@@ -111,50 +117,56 @@
       return true;
     }
 
-    function fadeOutCurrent() {
+    function stopCurrent() {
       if (!current) return;
       const { src, gain } = current;
       const t = ac.currentTime;
       gain.gain.cancelScheduledValues(t);
       gain.gain.setValueAtTime(gain.gain.value, t);
-      gain.gain.linearRampToValueAtTime(0, t + FADE_S);
-      src.stop(t + FADE_S + 0.05);
+      gain.gain.linearRampToValueAtTime(0, t + FADE_OUT_S);
+      src.stop(t + FADE_OUT_S + 0.02);
       current = null;
     }
 
     async function sync() {
+      const mine = ++token;
       if (!wanted || !song || !ensureContext()) return;
-      if (ac.state !== 'running') {
-        ac.resume()
-          .then(() => {
-            if (!wanted) ac.suspend();
-          })
-          .catch(arm);
-      }
-      if (current && current.song === song) return;
+      if (current && current.song === song && ac.state === 'running') return;
 
       const target = song;
-      const mine = ++token;
-      let buffer = buffers.get(target);
-      if (!buffer) {
+      let pending = buffers.get(target);
+      if (!pending) {
+        pending = renderSong(target, ac.sampleRate);
+        buffers.set(target, pending);
+        pending.catch(() => buffers.delete(target));
+      }
+      let buffer;
+      try {
+        buffer = await pending;
+      } catch {
+        return;
+      }
+      if (ac.state !== 'running') {
+        arm();
         try {
-          buffer = await renderSong(target, ac.sampleRate);
+          await ac.resume();
         } catch {
           return;
         }
-        buffers.set(target, buffer);
+        disarm();
       }
-      if (mine !== token || song !== target) return;
+      if (mine !== token || !wanted || song !== target) return;
 
-      fadeOutCurrent();
+      stopCurrent();
       const src = ac.createBufferSource();
       const gain = ac.createGain();
+      const start = ac.currentTime + 0.03;
       src.buffer = buffer;
       src.loop = true;
-      gain.gain.setValueAtTime(0, ac.currentTime);
-      gain.gain.linearRampToValueAtTime(1, ac.currentTime + FADE_S);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(1, start + FADE_IN_S);
       src.connect(gain).connect(master);
-      src.start();
+      src.start(start, clockOffset(buffer.duration, Date.now() + 30));
       current = { song: target, src, gain };
     }
 
@@ -166,11 +178,16 @@
       },
       pause() {
         wanted = false;
+        token++;
         disarm();
-        if (ac && ac.state === 'running') ac.suspend();
+        if (!ac) return;
+        stopCurrent();
+        setTimeout(() => {
+          if (!wanted && ac.state === 'running') ac.suspend();
+        }, (FADE_OUT_S + 0.05) * 1000);
       },
     };
   }
 
-  root.PMCAudio = { createMusicPlayer, renderSong, midiToHz };
+  root.PMCAudio = { createMusicPlayer, renderSong, midiToHz, clockOffset };
 })(globalThis);

@@ -58,6 +58,9 @@ export async function launch({ viewport = { width: 960, height: 400 } } = {}) {
     async getSettings() {
       return settingsPage.evaluate(() => chrome.storage.local.get('pmcSettings').then((r) => r.pmcSettings));
     },
+    async getOwner() {
+      return settingsPage.evaluate(() => chrome.storage.local.get('pmcAudioOwner').then((r) => r.pmcAudioOwner));
+    },
     async close() {
       await browser.close();
       server.close();

@@ -85,6 +85,19 @@ test('each theme has a valid looping score', () => {
   assert.equal(new Set(tunes).size, tunes.length, 'each theme has its own melody');
 });
 
+test('music position follows the wall clock so pages and tabs rejoin in step', () => {
+  require('../../extension/src/audio.js');
+  const { clockOffset } = globalThis.PMCAudio;
+  const loop = 10.4;
+  const t = 1_760_000_000_123;
+  assert.equal(clockOffset(loop, t), clockOffset(loop, t), 'two pages at the same moment agree');
+  assert.ok(Math.abs(clockOffset(loop, t + 2500) - ((clockOffset(loop, t) + 2.5) % loop)) < 1e-6, 'advances in real time');
+  for (let i = 0; i < 100; i++) {
+    const o = clockOffset(loop, t + i * 977);
+    assert.ok(o >= 0 && o < loop);
+  }
+});
+
 test('counter font glyphs are rectangular and cover the counter text', () => {
   for (const [ch, glyph] of Object.entries(Themes.FONT)) {
     assert.equal(glyph.length, 5, ch);

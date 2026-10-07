@@ -41,11 +41,11 @@ test('extension code has no network, logging, remote or eval paths', () => {
   }
 });
 
-test('typed values never reach storage: only settings are written', () => {
+test('typed values never reach storage: only settings and the audio-owner id are written', () => {
   for (const file of walk(EXT).filter((f) => f.endsWith('.js'))) {
     const src = fs.readFileSync(file, 'utf8');
     for (const [call] of src.matchAll(/storage\.local\.set\([^)]*\)/g)) {
-      assert.match(call, /\[Core\.STORAGE_KEY\]: settings/, `${path.basename(file)}: ${call}`);
+      assert.match(call, /\[Core\.STORAGE_KEY\]: settings|\[OWNER_KEY\]: instanceId/, `${path.basename(file)}: ${call}`);
     }
   }
 });
