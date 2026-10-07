@@ -223,7 +223,21 @@ test('every theme renders a seamless, non-silent music loop', { skip }, async ()
         if (i) maxJump = Math.max(maxJump, Math.abs(d[i] - d[i - 1]));
       }
       const expected = (theme.song.lead.length * 30) / theme.song.bpm;
-      out[id] = { duration: buf.duration, expected, rms: Math.sqrt(sum / d.length), seam: Math.abs(d[d.length - 1] - d[0]), maxJump, peak };
+      const win = 2205;
+      const levels = [];
+      for (let i = 0; i + win <= d.length; i += win) {
+        let s = 0;
+        for (let j = i; j < i + win; j++) s += d[j] * d[j];
+        levels.push(Math.sqrt(s / win));
+      }
+      const loudest = Math.max(...levels);
+      let gap = 0;
+      let run = 0;
+      for (const v of levels) {
+        run = v < loudest * 0.1 ? run + 1 : 0;
+        gap = Math.max(gap, run * 50);
+      }
+      out[id] = { duration: buf.duration, expected, rms: Math.sqrt(sum / d.length), seam: Math.abs(d[d.length - 1] - d[0]), maxJump, peak, gap };
     }
     return out;
   });
@@ -231,6 +245,8 @@ test('every theme renders a seamless, non-silent music loop', { skip }, async ()
     assert.ok(Math.abs(r.duration - r.expected) < 0.001, `${id} loop length ${r.duration}`);
     assert.ok(r.rms > 0.01, `${id} is audible`);
     assert.ok(r.seam <= r.maxJump + 1e-6, `${id} loop seam (${r.seam}) is no harsher than the music itself (${r.maxJump})`);
+    assert.ok(r.gap <= 100, `${id} has a ${r.gap} ms near-silent hole`);
+    assert.ok(r.peak <= 1, `${id} does not clip`);
   }
   await page.close();
 });

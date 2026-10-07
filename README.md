@@ -117,6 +117,9 @@ extension/
 - **Smooth music.** Each theme's score is rendered once with an `OfflineAudioContext` into a
   seamless loop buffer, then played with a native looping `AudioBufferSourceNode`. Playback runs on
   the audio thread, so busy pages or throttled frames can't cause dropouts.
+- **Continuous sound.** Melody notes are held legato until the next note, under a sustained bass and
+  a soft root-and-fifth pad, with a light echo; each loop is normalized. A test checks every theme's
+  loop has no near-silent stretch longer than 100 ms.
 - **One player at a time.** Every page runs its own copy, so only the most recently focused tab plays.
   Ownership is a random per-page id stored under `pmcAudioOwner`; this avoids overlapping, out-of-step
   loops from several visible tabs or windows. The loop position follows the wall clock, so after a

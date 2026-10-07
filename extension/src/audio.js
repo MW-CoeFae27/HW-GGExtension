@@ -23,6 +23,28 @@
     osc.stop(time + dur + 0.02);
   }
 
+  /** Sustained note: attack, settle to a held level, then a soft release when the next note arrives. */
+  function held(ctx, dest, midi, time, dur, type, gain, attack = 0.012, sustain = 0.65) {
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    const release = 0.06;
+    osc.type = type;
+    osc.frequency.value = midiToHz(midi);
+    env.gain.setValueAtTime(0, time);
+    env.gain.linearRampToValueAtTime(gain, time + attack);
+    env.gain.setTargetAtTime(gain * sustain, time + attack, 0.08);
+    env.gain.setTargetAtTime(0, time + dur, release / 3);
+    osc.connect(env).connect(dest);
+    osc.start(time);
+    osc.stop(time + dur + release * 2);
+  }
+
+  /** Steps until the next note in a looping part (rests are held through), capped. */
+  function holdSteps(part, step, cap) {
+    for (let n = 1; n <= cap; n++) if (part[(step + n) % part.length]) return n;
+    return cap;
+  }
+
   function perc(ctx, dest, noise, kind, time) {
     const src = ctx.createBufferSource();
     const filter = ctx.createBiquadFilter();
@@ -41,7 +63,7 @@
 
   /**
    * Renders one seamless loop of `song`. Two passes are rendered and the second is kept,
-   * so note tails from the end of the loop carry over into its start.
+   * so held notes and echoes from the end of the loop carry over into its start.
    */
   async function renderSong(song, sampleRate) {
     const stepDur = 60 / song.bpm / 2;
@@ -52,19 +74,48 @@
     const data = noise.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
 
+    const out = ctx.destination;
+    const echo = ctx.createDelay(2);
+    const feedback = ctx.createGain();
+    const echoTone = ctx.createBiquadFilter();
+    const echoMix = ctx.createGain();
+    echo.delayTime.value = stepDur * 3;
+    feedback.gain.value = 0.35;
+    echoTone.type = 'lowpass';
+    echoTone.frequency.value = 2400;
+    echoMix.gain.value = 0.3;
+    echo.connect(echoTone).connect(feedback).connect(echo);
+    echoTone.connect(echoMix).connect(out);
+    const leadBus = ctx.createGain();
+    leadBus.connect(out);
+    leadBus.connect(echo);
+
     for (let i = 0; i < steps * 2; i++) {
       const step = i % steps;
       const time = i * stepDur;
       const lead = song.lead[step];
       const bass = song.bass[step];
-      if (lead) tone(ctx, ctx.destination, lead, time, stepDur * 0.9, song.leadWave, song.leadGain);
-      if (bass) tone(ctx, ctx.destination, bass, time, stepDur * 1.8, song.bassWave, song.bassGain);
-      if (song.perc && step % (song.percEvery || 2) === 0) perc(ctx, ctx.destination, noise, song.perc, time);
+      if (lead) {
+        held(ctx, leadBus, lead, time, holdSteps(song.lead, step, 4) * stepDur, song.leadWave, song.leadGain);
+      }
+      if (bass) {
+        const dur = holdSteps(song.bass, step, 8) * stepDur;
+        held(ctx, out, bass, time, dur, song.bassWave, song.bassGain, 0.015, 0.75);
+        held(ctx, out, bass + 12, time, dur, 'sine', 0.16, 0.12, 0.9);
+        held(ctx, out, bass + 19, time, dur, 'sine', 0.11, 0.12, 0.9);
+      }
+      if (song.perc && step % (song.percEvery || 2) === 0) perc(ctx, out, noise, song.perc, time);
     }
 
     const rendered = await ctx.startRendering();
+    const samples = rendered.getChannelData(0).subarray(frames, frames * 2);
+    let peak = 0;
+    for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
     const loop = new root.AudioBuffer({ length: frames, numberOfChannels: 1, sampleRate });
-    loop.copyToChannel(rendered.getChannelData(0).subarray(frames, frames * 2), 0);
+    const normalized = new Float32Array(samples.length);
+    const scale = peak > 0 ? 0.9 / peak : 1;
+    for (let i = 0; i < samples.length; i++) normalized[i] = samples[i] * scale;
+    loop.copyToChannel(normalized, 0);
     return loop;
   }
 
