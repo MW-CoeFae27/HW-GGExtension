@@ -1,142 +1,26 @@
-/* Developer Power Mode Combo: Web Audio chiptune player (synthesized locally, no files). */
+/* Developer Power Mode Combo: tiny Web Audio chiptune player (synthesized locally, no files). */
 (function (root) {
   'use strict';
 
-  const MASTER_VOLUME = 0.05;
-  const FADE_IN_S = 0.25;
-  const FADE_OUT_S = 0.12;
+  const LOOKAHEAD_S = 0.25;
 
   function midiToHz(midi) {
     return 440 * Math.pow(2, (midi - 69) / 12);
   }
 
-  function tone(ctx, dest, midi, time, dur, type, gain) {
-    const osc = ctx.createOscillator();
-    const env = ctx.createGain();
-    osc.type = type;
-    osc.frequency.value = midiToHz(midi);
-    env.gain.setValueAtTime(0.0001, time);
-    env.gain.exponentialRampToValueAtTime(gain, time + 0.01);
-    env.gain.exponentialRampToValueAtTime(0.0001, time + dur);
-    osc.connect(env).connect(dest);
-    osc.start(time);
-    osc.stop(time + dur + 0.02);
-  }
-
-  /** Sustained note: attack, settle to a held level, then a soft release when the next note arrives. */
-  function held(ctx, dest, midi, time, dur, type, gain, attack = 0.012, sustain = 0.65) {
-    const osc = ctx.createOscillator();
-    const env = ctx.createGain();
-    const release = 0.06;
-    osc.type = type;
-    osc.frequency.value = midiToHz(midi);
-    env.gain.setValueAtTime(0, time);
-    env.gain.linearRampToValueAtTime(gain, time + attack);
-    env.gain.setTargetAtTime(gain * sustain, time + attack, 0.08);
-    env.gain.setTargetAtTime(0, time + dur, release / 3);
-    osc.connect(env).connect(dest);
-    osc.start(time);
-    osc.stop(time + dur + release * 2);
-  }
-
-  /** Steps until the next note in a looping part (rests are held through), capped. */
-  function holdSteps(part, step, cap) {
-    for (let n = 1; n <= cap; n++) if (part[(step + n) % part.length]) return n;
-    return cap;
-  }
-
-  function perc(ctx, dest, noise, kind, time) {
-    const src = ctx.createBufferSource();
-    const filter = ctx.createBiquadFilter();
-    const env = ctx.createGain();
-    const dur = kind === 'bell' ? 0.12 : 0.05;
-    src.buffer = noise;
-    filter.type = 'highpass';
-    filter.frequency.value = kind === 'bell' ? 7000 : kind === 'shaker' ? 5000 : 2500;
-    env.gain.setValueAtTime(kind === 'shaker' ? 0.12 : 0.2, time);
-    env.gain.exponentialRampToValueAtTime(0.0001, time + dur);
-    src.connect(filter).connect(env).connect(dest);
-    src.start(time);
-    src.stop(time + dur + 0.01);
-    if (kind === 'bell') tone(ctx, dest, 98, time, 0.15, 'sine', 0.12);
-  }
-
-  /**
-   * Renders one seamless loop of `song`. Two passes are rendered and the second is kept,
-   * so held notes and echoes from the end of the loop carry over into its start.
-   */
-  async function renderSong(song, sampleRate) {
-    const stepDur = 60 / song.bpm / 2;
-    const steps = song.lead.length;
-    const frames = Math.round(steps * stepDur * sampleRate);
-    const ctx = new root.OfflineAudioContext(1, frames * 2, sampleRate);
-    const noise = ctx.createBuffer(1, Math.round(sampleRate * 0.2), sampleRate);
-    const data = noise.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-
-    const out = ctx.destination;
-    const echo = ctx.createDelay(2);
-    const feedback = ctx.createGain();
-    const echoTone = ctx.createBiquadFilter();
-    const echoMix = ctx.createGain();
-    echo.delayTime.value = stepDur * 3;
-    feedback.gain.value = 0.35;
-    echoTone.type = 'lowpass';
-    echoTone.frequency.value = 2400;
-    echoMix.gain.value = 0.3;
-    echo.connect(echoTone).connect(feedback).connect(echo);
-    echoTone.connect(echoMix).connect(out);
-    const leadBus = ctx.createGain();
-    leadBus.connect(out);
-    leadBus.connect(echo);
-
-    for (let i = 0; i < steps * 2; i++) {
-      const step = i % steps;
-      const time = i * stepDur;
-      const lead = song.lead[step];
-      const bass = song.bass[step];
-      if (lead) {
-        held(ctx, leadBus, lead, time, holdSteps(song.lead, step, 4) * stepDur, song.leadWave, song.leadGain);
-      }
-      if (bass) {
-        const dur = holdSteps(song.bass, step, 8) * stepDur;
-        held(ctx, out, bass, time, dur, song.bassWave, song.bassGain, 0.015, 0.75);
-        held(ctx, out, bass + 12, time, dur, 'sine', 0.16, 0.12, 0.9);
-        held(ctx, out, bass + 19, time, dur, 'sine', 0.11, 0.12, 0.9);
-      }
-      if (song.perc && step % (song.percEvery || 2) === 0) perc(ctx, out, noise, song.perc, time);
-    }
-
-    const rendered = await ctx.startRendering();
-    const samples = rendered.getChannelData(0).subarray(frames, frames * 2);
-    let peak = 0;
-    for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
-    const loop = new root.AudioBuffer({ length: frames, numberOfChannels: 1, sampleRate });
-    const normalized = new Float32Array(samples.length);
-    const scale = peak > 0 ? 0.9 / peak : 1;
-    for (let i = 0; i < samples.length; i++) normalized[i] = samples[i] * scale;
-    loop.copyToChannel(normalized, 0);
-    return loop;
-  }
-
-  /** Position in the loop derived from the wall clock, so every page joins the "same broadcast". */
-  function clockOffset(duration, nowMs = Date.now()) {
-    return (nowMs / 1000) % duration;
-  }
-
   function createMusicPlayer() {
     let ac = null;
     let master = null;
+    let noise = null;
+    let song = null;
+    let step = 0;
+    let nextTime = 0;
     let wanted = false;
     let armed = false;
-    let song = null;
-    let current = null;
-    let token = 0;
-    const buffers = new Map();
 
     function onGesture() {
       disarm();
-      sync();
+      if (wanted) start();
     }
 
     // Autoplay policy: wait for a real user gesture on the page before creating audio.
@@ -154,91 +38,101 @@
       root.removeEventListener('keydown', onGesture, { capture: true });
     }
 
-    function ensureContext() {
-      if (ac) return true;
-      const activation = root.navigator && root.navigator.userActivation;
-      if (!activation || !activation.hasBeenActive) {
-        arm();
-        return false;
-      }
-      ac = new root.AudioContext({ latencyHint: 'playback' });
-      master = ac.createGain();
-      master.gain.value = MASTER_VOLUME;
-      master.connect(ac.destination);
-      return true;
-    }
-
-    function stopCurrent() {
-      if (!current) return;
-      const { src, gain } = current;
-      const t = ac.currentTime;
-      gain.gain.cancelScheduledValues(t);
-      gain.gain.setValueAtTime(gain.gain.value, t);
-      gain.gain.linearRampToValueAtTime(0, t + FADE_OUT_S);
-      src.stop(t + FADE_OUT_S + 0.02);
-      current = null;
-    }
-
-    async function sync() {
-      const mine = ++token;
-      if (!wanted || !song || !ensureContext()) return;
-      if (current && current.song === song && ac.state === 'running') return;
-
-      const target = song;
-      let pending = buffers.get(target);
-      if (!pending) {
-        pending = renderSong(target, ac.sampleRate);
-        buffers.set(target, pending);
-        pending.catch(() => buffers.delete(target));
-      }
-      let buffer;
-      try {
-        buffer = await pending;
-      } catch {
-        return;
-      }
-      if (ac.state !== 'running') {
-        arm();
-        try {
-          await ac.resume();
-        } catch {
+    function start() {
+      if (!ac) {
+        const activation = root.navigator && root.navigator.userActivation;
+        if (!activation || !activation.hasBeenActive) {
+          arm();
           return;
         }
-        disarm();
+        ac = new root.AudioContext();
+        master = ac.createGain();
+        master.gain.value = 0.05;
+        master.connect(ac.destination);
       }
-      if (mine !== token || !wanted || song !== target) return;
+      if (ac.state !== 'running') {
+        ac.resume()
+          .then(() => {
+            if (!wanted) ac.suspend();
+          })
+          .catch(arm);
+      }
+    }
 
-      stopCurrent();
+    function noiseBuffer() {
+      if (!noise) {
+        noise = ac.createBuffer(1, Math.round(ac.sampleRate * 0.2), ac.sampleRate);
+        const data = noise.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      }
+      return noise;
+    }
+
+    function tone(midi, time, dur, type, gain) {
+      const osc = ac.createOscillator();
+      const env = ac.createGain();
+      osc.type = type;
+      osc.frequency.value = midiToHz(midi);
+      env.gain.setValueAtTime(0.0001, time);
+      env.gain.exponentialRampToValueAtTime(gain, time + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+      osc.connect(env).connect(master);
+      osc.start(time);
+      osc.stop(time + dur + 0.02);
+    }
+
+    function perc(kind, time) {
       const src = ac.createBufferSource();
-      const gain = ac.createGain();
-      const start = ac.currentTime + 0.03;
-      src.buffer = buffer;
-      src.loop = true;
-      gain.gain.setValueAtTime(0, start);
-      gain.gain.linearRampToValueAtTime(1, start + FADE_IN_S);
-      src.connect(gain).connect(master);
-      src.start(start, clockOffset(buffer.duration, Date.now() + 30));
-      current = { song: target, src, gain };
+      const filter = ac.createBiquadFilter();
+      const env = ac.createGain();
+      const dur = kind === 'bell' ? 0.12 : 0.05;
+      src.buffer = noiseBuffer();
+      filter.type = 'highpass';
+      filter.frequency.value = kind === 'bell' ? 7000 : kind === 'shaker' ? 5000 : 2500;
+      env.gain.setValueAtTime(kind === 'shaker' ? 0.12 : 0.2, time);
+      env.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+      src.connect(filter).connect(env).connect(master);
+      src.start(time);
+      src.stop(time + dur + 0.01);
+      if (kind === 'bell') tone(98, time, 0.15, 'sine', 0.12);
+    }
+
+    function playStep(i, time, stepDur) {
+      const lead = song.lead[i % song.lead.length];
+      const bass = song.bass[i % song.bass.length];
+      if (lead) tone(lead, time, stepDur * 0.9, song.leadWave, song.leadGain);
+      if (bass) tone(bass, time, stepDur * 1.8, song.bassWave, song.bassGain);
+      if (song.perc && i % (song.percEvery || 2) === 0) perc(song.perc, time);
     }
 
     return {
       play(nextSong) {
         wanted = true;
-        song = nextSong;
-        sync();
+        if (nextSong !== song) {
+          song = nextSong;
+          step = 0;
+          nextTime = 0;
+        }
+        start();
       },
       pause() {
         wanted = false;
-        token++;
         disarm();
-        if (!ac) return;
-        stopCurrent();
-        setTimeout(() => {
-          if (!wanted && ac.state === 'running') ac.suspend();
-        }, (FADE_OUT_S + 0.05) * 1000);
+        if (ac && ac.state === 'running') ac.suspend();
+      },
+      /** Schedules notes slightly ahead; called from the overlay's single animation loop. */
+      pump() {
+        if (!wanted || !song || !ac || ac.state !== 'running') return;
+        const stepDur = 60 / song.bpm / 2;
+        if (nextTime < ac.currentTime) nextTime = ac.currentTime + 0.05;
+        while (nextTime < ac.currentTime + LOOKAHEAD_S) {
+          playStep(step, nextTime, stepDur);
+          step = (step + 1) % song.lead.length;
+          nextTime += stepDur;
+        }
       },
     };
   }
 
-  root.PMCAudio = { createMusicPlayer, renderSong, midiToHz, clockOffset };
+  root.PMCAudio = { createMusicPlayer, midiToHz };
 })(globalThis);
